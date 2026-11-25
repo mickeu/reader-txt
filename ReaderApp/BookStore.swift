@@ -88,138 +88,97 @@ final class BookStore: ObservableObject {
 
     /// 从任意来源（文件选择器 / 分享 / Inbox）导入一个 txt。
     /// 阻断重复：同名且同大小的已存在书籍直接复用，不重复复制。
+    /// 返回值仅表示「已排队」；真正结果通过 onDone 回调，避免主线程做大文件 I/O。
     @discardableResult
     func importFile(at url: URL, onDone: ((Bool) -> Void)? = nil) -> Bool {
-        let scoped = url.startAccessingSecurityScopedResource()
-        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-
-        guard let docs = documentsURL else {
-            finish(false, error: "找不到文档目录", onDone: onDone)
-            return false
-        }
-
-        let name = (url.lastPathComponent as NSString).lastPathComponent
-        guard !name.isEmpty else {
-            finish(false, error: "文件名无效", onDone: onDone)
-            return false
-        }
-
-        // 读入数据（带大小上限，先看属性再读，避免大文件爆内存）。
-        var data: Data
-        do {
-            let attrs = try fm.attributesOfItem(atPath: url.path)
-            let size = (attrs[.size] as? NSNumber)?.intValue ?? 0
-            if size > maxImportBytes {
-                finish(false, error: "文件超过 64 MB，暂不支持", onDone: onDone)
-                return false
+        let snapshot = books
+        io.async { [weak self] in
+            guard let self else { return }
+            let outcome = self.performImport(at: url, snapshot: snapshot)
+            DispatchQueue.main.async {
+                if let err = outcome.error { self.lastError = err }
+                onDone?(outcome.ok)
             }
-            data = try Data(contentsOf: url, options: .mappedIfSafe)
-        } catch {
-            finish(false, error: "读取失败：\(error.localizedDescription)", onDone: onDone)
-            return false
         }
-
-        guard let text = Self.decode(data: data), !text.isEmpty else {
-            finish(false, error: "无法识别为文本文件（可能是二进制或空文件）", onDone: onDone)
-            return false
-        }
-
-        // 目标文件名：重名时自动加序号，绝不覆盖已有文件。
-        var targetName = name
-        var targetURL = docs.appendingPathComponent(targetName)
-        if fm.fileExists(atPath: targetURL.path) {
-            let existing = books.first { $0.fileName == targetName }
-            let sameSize = (try? fm.attributesOfItem(atPath: targetURL.path)[.size] as? NSNumber)?.intValue == data.count
-            if existing != nil && sameSize {
-                // 同一本书重复导入：刷新准备状态即可。
-                if let i = books.firstIndex(where: { $0.fileName == targetName }) {
-                    books[i].updatedAt = Date()
-                    saveIndex()
-                }
-                finish(true, error: nil, onDone: onDone)
-                return true
-            }
-            targetName = Self.uniqueName(base: name, in: docs, fm: fm)
-            targetURL = docs.appendingPathComponent(targetName)
-        }
-
-        do {
-            try data.write(to: targetURL, options: .atomic)
-        } catch {
-            finish(false, error: "写入失败：\(error.localizedDescription)", onDone: onDone)
-            return false
-        }
-
-        var book = Book(title: Self.title(from: targetName, text: text), fileName: targetName)
-        book.charCount = text.count
-        Self.fill(book: &book, text: text)
-        books.append(book)
-        saveIndex()
-        finish(true, error: nil, onDone: onDone)
         return true
     }
 
-    /// `onOpenURL` 与 Inbox 共用入口；不认识的 URL 直接忽略。
+    /// `onOpenURL` 入口；不认识的 URL 直接忽略。
     func importExternal(_ url: URL) {
         guard url.isFileURL else { return }
         _ = importFile(at: url)
     }
 
-    /// 启动与回到前台时扫 `Documents/Inbox`（iOS 分享「拷贝到」落点）。
-    /// 导入成功后删除 Inbox 中的源文件，避免下次重复处理。
+    /// 启动与回到前台时扫 `Documents/Inbox`（iOS 分享「拷贝到」的落点）。
+    /// 导入成功后删除 Inbox 源文件，避免重复处理。
     func scanInbox() {
+        let snapshot = books
         io.async { [weak self] in
             guard let self, let inbox = self.inboxURL else { return }
             let contents = (try? self.fm.contentsOfDirectory(at: inbox,
                                                             includingPropertiesForKeys: nil,
                                                             options: [.skipsHiddenFiles])) ?? []
-            for url in contents where url.pathExtension.lowercased() != "" || true {
-                let ok = self.importSynchronously(at: url)
-                if ok {
+            guard !contents.isEmpty else { return }
+            for url in contents {
+                let outcome = self.performImport(at: url, snapshot: snapshot)
+                if outcome.ok {
                     try? self.fm.removeItem(at: url)
+                } else if let err = outcome.error {
+                    DispatchQueue.main.async { self.lastError = err }
                 }
             }
         }
     }
 
-    /// 供 Inbox 使用的同步版本（已在 io 队列上，不能再套队列）。
-    private func importSynchronously(at url: URL) -> Bool {
+    /// 只在 io 队列调用。`snapshot` 是本轮开始时的书架快照，避免跨线程读 @Published。
+    private func performImport(at url: URL, snapshot: [Book]) -> (ok: Bool, error: String?) {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        guard let data = try? Data(contentsOf: url, options: .mappedIfSafe),
-              data.count <= maxImportBytes,
-              let text = Self.decode(data: data), !text.isEmpty else { return false }
 
+        guard let docs = documentsURL else { return (false, "找不到文档目录") }
         let name = (url.lastPathComponent as NSString).lastPathComponent
-        guard let docs = documentsURL, !name.isEmpty else { return false }
+        guard !name.isEmpty, name != ".", name != ".." else { return (false, "文件名无效") }
+
+        var data: Data
+        do {
+            let attrs = try fm.attributesOfItem(atPath: url.path)
+            let size = (attrs[.size] as? NSNumber)?.intValue ?? 0
+            if size > maxImportBytes { return (false, "文件超过 64 MB，暂不支持") }
+            if size == 0 { return (false, "文件是空的") }
+            data = try Data(contentsOf: url, options: .mappedIfSafe)
+        } catch {
+            return (false, "读取失败：\(error.localizedDescription)")
+        }
+
+        guard let text = Self.decode(data: data), !text.isEmpty else {
+            return (false, "无法识别为文本文件（可能是二进制或空文件）")
+        }
 
         var targetName = name
-        if fm.fileExists(atPath: docs.appendingPathComponent(targetName).path) {
-            let existing = books.first { $0.fileName == targetName }
-            let sameSize = (try? fm.attributesOfItem(atPath: docs.appendingPathComponent(targetName).path)[.size] as? NSNumber)?.intValue == data.count
-            if existing != nil && sameSize { return true }   // 已导入过，清掉 Inbox 即可
+        let existingURL = docs.appendingPathComponent(targetName)
+        if fm.fileExists(atPath: existingURL.path) {
+            let existingSize = (try? fm.attributesOfItem(atPath: existingURL.path)[.size] as? NSNumber)?.intValue
+            if snapshot.contains(where: { $0.fileName == targetName }), existingSize == data.count {
+                return (true, nil)   // 同一本书重复导入，直接视为成功
+            }
             targetName = Self.uniqueName(base: name, in: docs, fm: fm)
         }
+
         do {
             try data.write(to: docs.appendingPathComponent(targetName), options: .atomic)
-        } catch { return false }
+        } catch {
+            return (false, "写入失败：\(error.localizedDescription)")
+        }
 
         var book = Book(title: Self.title(from: targetName, text: text), fileName: targetName)
-        book.charCount = text.count
         Self.fill(book: &book, text: text)
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
             self.books.removeAll { $0.fileName == targetName }
             self.books.append(book)
             self.saveIndex()
         }
-        return true
-    }
-
-    private func finish(_ ok: Bool, error: String?, onDone: ((Bool) -> Void)?) {
-        DispatchQueue.main.async {
-            if let error { self.lastError = error }
-            onDone?(ok)
-        }
+        return (true, nil)
     }
 
     // MARK: - 删除 / 修复
@@ -239,11 +198,11 @@ final class BookStore: ObservableObject {
 
     /// 检查索引里记录的文件是否还在；缺失的标记为未准备，不再假装能打开。
     func prepareMissing() {
+        let snapshotIn = books            // Called on the main actor by the view.
         io.async { [weak self] in
             guard let self else { return }
             var changed = false
-            var snapshot: [Book] = []
-            DispatchQueue.main.sync { snapshot = self.books }
+            var snapshot = snapshotIn
             for var book in snapshot {
                 guard let url = self.textURL(for: book) else { continue }
                 let exists = self.fm.fileExists(atPath: url.path)

@@ -105,18 +105,14 @@ struct ShelfView: View {
     private func importFiles(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
         importing = true
-        DispatchQueue.main.async {
-            var firstError: String?
-            for url in urls {
-                let before = store.books.count
-                _ = store.importFile(at: url) { ok in
-                    if !ok && firstError == nil { firstError = store.lastError ?? "导入失败" }
-                    _ = before
+        var remaining = urls.count
+        for url in urls {
+            _ = store.importFile(at: url) { ok in
+                remaining -= 1
+                if !ok, importError == nil {
+                    importError = store.lastError ?? "导入失败"
                 }
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                importing = false
-                if let firstError { importError = firstError }
+                if remaining <= 0 { importing = false }
             }
         }
     }
