@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key><string>读书</string>
+	<key>CFBundleName</key><string>读书</string>
+	<key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleShortVersionString</key><string>1.1</string>
+	<key>CFBundleVersion</key><string>2</string>
+	<key>CFBundlePackageType</key><string>APPL</string>
+	<key>LSRequiresIPhoneOS</key><true/>
+	<key>UIFileSharingEnabled</key><true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key><true/>
+	<key>UILaunchScreen</key><dict/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array><string>UIInterfaceOrientationPortrait</string></array>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key><string>Text Document</string>
+			<key>CFBundleTypeRole</key><string>Viewer</string>
+			<key>LSHandlerRank</key><string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array><string>public.plain-text</string><string>public.text</string><string>net.daringfireball.markdown</string></array>
+			<key>CFBundleTypeExtensions</key>
+			<array><string>txt</string><string>md</string><string>text</string></array>
+		</dict>
+	</array>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key><string>public.plain-text</string>
+			<key>UTTypeConformsTo</key><array><string>public.text</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>txt</string><string>text</string></array></dict>
+		</dict>
+	</array>
+</dict>
+</plist>

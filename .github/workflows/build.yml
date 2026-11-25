@@ -1,0 +1,31 @@
+name: build-reader
+on:
+  push: { branches: [ main ] }
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select newest Xcode
+        run: |
+          XC=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          echo "selected: $XC"; sudo xcode-select -s "$XC"; xcodebuild -version
+      - name: Build (unsigned)
+        run: |
+          set -e
+          xcodebuild -project ReaderApp.xcodeproj -scheme ReaderApp \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DD clean build
+      - name: Package IPA
+        run: |
+          set -e
+          APP=$(find build/DD/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' | head -1)
+          echo "app=$APP"; test -n "$APP"
+          rm -rf out && mkdir -p out/Payload && cp -r "$APP" out/Payload/
+          ( cd out && zip -qry ../Reader-unsigned.ipa Payload )
+          ls -la Reader-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        with: { name: reader-ipa, path: Reader-unsigned.ipa }
