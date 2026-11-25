@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		AA0000000000000000000001 /* 读书.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "读书.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA0000000000000000000001 /* ReaderApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ReaderApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -53,7 +53,7 @@
 		AA0000000000000000000031 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				AA0000000000000000000001 /* 读书.app */,
+				AA0000000000000000000001 /* ReaderApp.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -78,7 +78,7 @@
 			);
 			name = ReaderApp;
 			productName = ReaderApp;
-			productReference = AA0000000000000000000001 /* 读书.app */;
+			productReference = AA0000000000000000000001 /* ReaderApp.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -198,7 +198,7 @@
 				);
 				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.l8U.reader;
-				PRODUCT_NAME = "读书";
+				PRODUCT_NAME = ReaderApp;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -222,7 +222,7 @@
 				);
 				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.l8U.reader;
-				PRODUCT_NAME = "读书";
+				PRODUCT_NAME = ReaderApp;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;

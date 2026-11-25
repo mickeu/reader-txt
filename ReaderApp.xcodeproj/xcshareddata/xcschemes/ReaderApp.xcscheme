@@ -6,7 +6,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "AA0000000000000000000010"
-               BuildableName = "读书.app"
+               BuildableName = "ReaderApp.app"
                BlueprintName = "ReaderApp"
                ReferencedContainer = "container:ReaderApp.xcodeproj">
             </BuildableReference>
