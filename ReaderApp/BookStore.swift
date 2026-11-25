@@ -328,8 +328,6 @@ final class BookStore: ObservableObject {
         }
         return "\(stem)-\(UUID().uuidString.prefix(8)).\(ext)"
     }
-}
-
 
     // MARK: - 阅读页回写
 
@@ -358,6 +356,8 @@ final class BookStore: ObservableObject {
         books[i] = b
         saveIndex()
     }
+}
+
 
 extension Notification.Name {
     static let readerShelfChanged = Notification.Name("reader.shelfChanged")
